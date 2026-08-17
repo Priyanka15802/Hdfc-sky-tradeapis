@@ -1,11 +1,12 @@
 # HDFC Sky — Lite Trade Tool
 
 A small Flask backend + single-page HTML/JS frontend for the HDFC Sky Open
-API: login (7-call flow: token id → username → OTP → PIN → authorise →
-access token, plus a resend-OTP utility), a 5-second-polling LTP
-watchlist, and place/modify/cancel for Regular, AMO, Cover, and Bracket
-orders, plus place/cancel/fetch for GTT orders (23 of the 24 APIs in
-HDFC's doc — see "What's not implemented" below).
+API: a 3-step login (Client ID → OTP → MPIN, with Get Token ID and
+Authorise chained in server-side), an LTP watchlist with manual refresh
+and an optional 5-second auto-refresh toggle, and place/modify/cancel for
+Regular, AMO, Cover, and Bracket orders, plus place/cancel/fetch for GTT
+orders (23 of the 24 APIs in HDFC's doc — see "What's not implemented"
+below).
 
 Every request this tool sends mirrors an exact curl from HDFC's own API
 doc — same host, path, method, and body — nothing was guessed. Where the
@@ -44,35 +45,35 @@ function to `hdfc_client.py` (mirroring the others) and a route in
 python3 -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
-# fill in HDFC_SKY_API_KEY, HDFC_SKY_API_SECRET, HDFC_SKY_CLIENT_ID, FLASK_SECRET_KEY
+# fill in HDFC_SKY_API_KEY, HDFC_SKY_API_SECRET, HDFC_SKY_CLIENT_ID,
+# HDFC_SKY_CONSENT, FLASK_SECRET_KEY
 pytest -q          # sanity check, all HTTP calls mocked, no real credentials needed
 python app.py       # http://127.0.0.1:5000, Flask dev server
 ```
 
-`DRY_RUN=true` (the `.env.example` default) makes every place/modify/cancel
-order call return the exact request it *would* send instead of sending
-it — verify payloads look right before flipping it to `false`.
+`DRY_RUN=true` (the `.env.example` default) is the tool's *starting*
+dry-run state each time it launches — every place/modify/cancel order
+call returns the exact request it *would* send instead of sending it.
+There's also a live toggle in the UI (top right once logged in): flipping
+it off asks for confirmation first, since it means real orders start
+going to your live account from then on for that browser session.
 
 ## How the login flow works in the UI
 
-Each of the 7 steps is its own button because HDFC's docs never show what
-the responses look like, so the tool can't reliably auto-chain them:
+Only 3 steps are shown — **Client ID → OTP → MPIN**. HDFC's Get Token ID
+and Authorise calls still happen, they're just chained in server-side
+(`/api/login/begin` does Get Token ID + Validate Username;
+`/api/login/finish` does Validate MPIN + Authorise + Get Access Token) so
+you don't need a separate screen for each. Authorise's `consent` value
+comes from `HDFC_SKY_CONSENT` in `.env` rather than being typed in — HDFC
+never documents what value it expects, so set it to whatever worked when
+you tested manually (e.g. `true`).
 
-1. **Start login** → gets a `token_id`.
-2. **Submit username**.
-3. **Validate OTP** (there's also a Resend OTP button).
-4. **Validate PIN**.
-5. **Authorise** — needs a `request_token` (auto-filled if step 3 or 4's
-   response contained one under a common key name; otherwise check the
-   raw response shown on screen and paste it in yourself) and a
-   `consent` value (HDFC's doc shows this parameter but never says what
-   value it expects — enter whatever your account requires).
-6. **Get access token** — exchanges the request_token + your API secret
-   for the access_token that every subsequent call uses.
-
-The raw JSON from every step is shown on screen specifically so you can
-see what HDFC actually sent back and correct any auto-filled field that
-guessed wrong.
+If a step fails, the error is shown directly rather than needing a
+separate raw-response toggle. There's also a "show/hide raw API
+responses" link on the login card for cases where you want to see exactly
+what HDFC sent back (e.g. while adapting this to a slightly different
+account/response shape).
 
 ## Why this needs to run on a server, not your laptop
 

@@ -1,20 +1,24 @@
 """Flask backend for the HDFC Sky lite trading tool.
 
-Keeps api_key/api_secret server-side (from .env) and the per-login
+Keeps api_key/api_secret/consent server-side (from .env) and the per-login
 token_id/request_token/access_token in the server-side session — none of
 that ever reaches browser JS directly except access_token's presence
 (true/false), so the frontend can tell if it's logged in.
 
+Only 3 login steps are user-facing (Client ID, OTP, MPIN) — Get Token ID
+and Authorise still happen, chained in behind /api/login/begin and
+/api/login/finish respectively, since they're required by HDFC's flow but
+don't need their own screen.
+
 HDFC's docs never show response bodies, so this file doesn't assume a
 fixed shape for them: `_extract` tries a handful of common key spellings
 and otherwise leaves the field blank for the user to fill in by hand after
-looking at the raw response (echoed back in every /api/login/* reply as
-"raw").
+looking at the raw response (echoed back as "raw" in login replies).
 
 Order-mutating calls (place/modify/cancel, everywhere) are gated by
-DRY_RUN (default true): with it on, the exact request that *would* be
-sent is returned instead of actually sending it, so you can verify
-payloads against your real account behaviour before risking a live order.
+dry-run, which defaults to DRY_RUN from .env but can be flipped live per
+session via POST /api/dry-run: with it on, the exact request that *would*
+be sent is returned instead of actually sending it.
 """
 from __future__ import annotations
 
@@ -34,8 +38,9 @@ app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-only-change-me")
 API_KEY = os.environ.get("HDFC_SKY_API_KEY", "")
 API_SECRET = os.environ.get("HDFC_SKY_API_SECRET", "")
 DEFAULT_CLIENT_ID = os.environ.get("HDFC_SKY_CLIENT_ID", "")
+CONSENT = os.environ.get("HDFC_SKY_CONSENT", "")
 TIMEOUT = float(os.environ.get("HDFC_SKY_REQUEST_TIMEOUT_SECONDS", "10"))
-DRY_RUN = os.environ.get("DRY_RUN", "true").strip().lower() in ("1", "true", "yes")
+DRY_RUN_DEFAULT = os.environ.get("DRY_RUN", "true").strip().lower() in ("1", "true", "yes")
 
 
 def _extract(payload, *candidates):
@@ -63,9 +68,16 @@ def _require_login():
     return None
 
 
+def _dry_run() -> bool:
+    """Effective dry-run state: a per-session toggle if set, else the
+    .env default. Every new browser session starts from the .env value,
+    so the tool opens safe even if you forget to check."""
+    return session.get("dry_run", DRY_RUN_DEFAULT)
+
+
 def _mutate(description: dict, fn, *args):
-    """Runs an order-mutating HDFC call, or short-circuits under DRY_RUN."""
-    if DRY_RUN:
+    """Runs an order-mutating HDFC call, or short-circuits under dry-run."""
+    if _dry_run():
         return jsonify(dry_run=True, would_send=description)
     return jsonify(raw=fn(*args))
 
@@ -86,32 +98,42 @@ def status():
         logged_in=bool(session.get("access_token")),
         client_id=session.get("client_id") or DEFAULT_CLIENT_ID,
         api_key_configured=bool(API_KEY),
-        dry_run=DRY_RUN,
+        dry_run=_dry_run(),
     )
 
 
-# --- Login flow -------------------------------------------------
+@app.post("/api/dry-run")
+def set_dry_run():
+    body = request.get_json(force=True)
+    session["dry_run"] = bool(body.get("enabled"))
+    return jsonify(dry_run=_dry_run())
 
-@app.post("/api/login/start")
-def login_start():
+
+# --- Login flow -------------------------------------------------
+#
+# Only 3 steps are user-facing: Client ID, OTP, MPIN. HDFC's Get Token ID
+# and Authorise are still called (they're required), just chained
+# server-side instead of needing their own buttons. Authorise's `consent`
+# value comes from HDFC_SKY_CONSENT in .env rather than being typed in.
+
+@app.post("/api/login/begin")
+def login_begin():
     if not API_KEY:
         return jsonify(error="HDFC_SKY_API_KEY is not set in .env"), 400
-    raw = hdfc_client.get_token_id(API_KEY, TIMEOUT)
-    token_id = _extract(raw, "token_id", "tokenId")
-    if token_id:
-        session["token_id"] = token_id
-    return jsonify(raw=raw, token_id=token_id)
+    username = request.get_json(force=True)["username"]
 
-
-@app.post("/api/login/username")
-def login_username():
-    body = request.get_json(force=True)
-    token_id = session.get("token_id") or body.get("token_id")
+    token_raw = hdfc_client.get_token_id(API_KEY, TIMEOUT)
+    token_id = _extract(token_raw, "token_id", "tokenId")
     if not token_id:
-        return jsonify(error="No token_id yet — call /api/login/start first"), 400
+        return jsonify(error="Could not start login (no token_id in response)", raw=token_raw), 502
     session["token_id"] = token_id
-    raw = hdfc_client.validate_username(API_KEY, token_id, body["username"], TIMEOUT)
-    return jsonify(raw=raw)
+
+    try:
+        username_raw = hdfc_client.validate_username(API_KEY, token_id, username, TIMEOUT)
+    except HdfcApiError as e:
+        return jsonify(error="HDFC Sky API error", status_code=e.status_code, payload=e.payload), 502
+
+    return jsonify(ok=True, raw={"token_id": token_raw, "username": username_raw})
 
 
 @app.post("/api/login/otp")
@@ -119,77 +141,59 @@ def login_otp():
     body = request.get_json(force=True)
     token_id = session.get("token_id") or body.get("token_id")
     if not token_id:
-        return jsonify(error="No token_id yet — call /api/login/start first"), 400
-    # otp_sent/token_id_used are temporary debug fields, included on both
-    # success and failure, so you can see exactly what this call sent to
-    # HDFC — remove once the OTP step is confirmed working.
-    try:
-        raw = hdfc_client.validate_otp(API_KEY, token_id, body["otp"], TIMEOUT)
-    except HdfcApiError as e:
-        return jsonify(error="HDFC Sky API error", status_code=e.status_code, payload=e.payload,
-                        otp_sent=body["otp"], token_id_used=token_id), 502
-    request_token = _extract(raw, "request_token", "requestToken")
-    if request_token:
-        session["request_token"] = request_token
-    return jsonify(raw=raw, request_token=request_token, otp_sent=body["otp"], token_id_used=token_id)
+        return jsonify(error="No token_id yet — start over from Client ID"), 400
+    raw = hdfc_client.validate_otp(API_KEY, token_id, body["otp"], TIMEOUT)
+    return jsonify(ok=True, raw=raw)
 
 
 @app.post("/api/login/otp/resend")
 def login_otp_resend():
     token_id = session.get("token_id")
     if not token_id:
-        return jsonify(error="No token_id yet — call /api/login/start first"), 400
+        return jsonify(error="No token_id yet — start over from Client ID"), 400
     raw = hdfc_client.resend_otp(API_KEY, token_id, TIMEOUT)
     return jsonify(raw=raw)
 
 
-@app.post("/api/login/pin")
-def login_pin():
+@app.post("/api/login/finish")
+def login_finish():
+    """Validate MPIN, then chain Authorise + Get Access Token automatically."""
     body = request.get_json(force=True)
     token_id = session.get("token_id")
     if not token_id:
-        return jsonify(error="No token_id yet — call /api/login/start first"), 400
-    # Temporary debug fields, same reasoning as login_otp above.
-    try:
-        raw = hdfc_client.validate_pin(API_KEY, token_id, body["answer"], TIMEOUT)
-    except HdfcApiError as e:
-        return jsonify(error="HDFC Sky API error", status_code=e.status_code, payload=e.payload,
-                        answer_sent=body["answer"], token_id_used=token_id), 502
-    request_token = _extract(raw, "request_token", "requestToken")
-    if request_token:
-        session["request_token"] = request_token
-    return jsonify(raw=raw, request_token=request_token, answer_sent=body["answer"], token_id_used=token_id)
-
-
-@app.post("/api/login/authorise")
-def login_authorise():
-    body = request.get_json(force=True)
-    token_id = session.get("token_id")
-    request_token = body.get("request_token") or session.get("request_token")
-    consent = body["consent"]
-    if not token_id or not request_token:
-        return jsonify(error="Missing token_id or request_token — complete earlier login steps first"), 400
-    raw = hdfc_client.authorise(API_KEY, token_id, consent, request_token, TIMEOUT)
-    new_request_token = _extract(raw, "request_token", "requestToken") or request_token
-    session["request_token"] = new_request_token
-    return jsonify(raw=raw, request_token=new_request_token)
-
-
-@app.post("/api/login/access-token")
-def login_access_token():
-    body = request.get_json(force=True)
-    request_token = body.get("request_token") or session.get("request_token")
-    if not request_token:
-        return jsonify(error="No request_token yet — complete the Authorise step first"), 400
+        return jsonify(error="No token_id yet — start over from Client ID"), 400
+    if not CONSENT:
+        return jsonify(error="HDFC_SKY_CONSENT is not set in .env"), 400
     if not API_SECRET:
         return jsonify(error="HDFC_SKY_API_SECRET is not set in .env"), 400
-    raw = hdfc_client.get_access_token(API_KEY, request_token, API_SECRET, TIMEOUT)
-    access_token = _extract(raw, "access_token", "accessToken")
-    client_id = _extract(raw, "client_id", "clientId") or DEFAULT_CLIENT_ID
-    if access_token:
-        session["access_token"] = access_token
-        session["client_id"] = client_id
-    return jsonify(raw=raw, access_token_received=bool(access_token))
+
+    try:
+        pin_raw = hdfc_client.validate_pin(API_KEY, token_id, body["answer"], TIMEOUT)
+    except HdfcApiError as e:
+        return jsonify(error="HDFC Sky API error at Validate MPIN", status_code=e.status_code, payload=e.payload), 502
+    request_token = _extract(pin_raw, "request_token", "requestToken")
+    if not request_token:
+        return jsonify(error="No request_token in Validate MPIN response", raw=pin_raw), 502
+
+    try:
+        authorise_raw = hdfc_client.authorise(API_KEY, token_id, CONSENT, request_token, TIMEOUT)
+    except HdfcApiError as e:
+        return jsonify(error="HDFC Sky API error at Authorise", status_code=e.status_code, payload=e.payload), 502
+    request_token = _extract(authorise_raw, "request_token", "requestToken") or request_token
+
+    try:
+        token_raw = hdfc_client.get_access_token(API_KEY, request_token, API_SECRET, TIMEOUT)
+    except HdfcApiError as e:
+        return jsonify(error="HDFC Sky API error at Get Access Token", status_code=e.status_code, payload=e.payload), 502
+    access_token = _extract(token_raw, "access_token", "accessToken")
+    client_id = _extract(token_raw, "client_id", "clientId") or DEFAULT_CLIENT_ID
+    if not access_token:
+        return jsonify(error="No access_token in Get Access Token response", raw=token_raw), 502
+
+    session["access_token"] = access_token
+    session["client_id"] = client_id
+    return jsonify(ok=True, logged_in=True, client_id=client_id,
+                    raw={"pin": pin_raw, "authorise": authorise_raw, "access_token": token_raw})
 
 
 @app.post("/api/logout")

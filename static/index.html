@@ -9,7 +9,10 @@
 <body>
 <header>
   <h1>HDFC Sky — Lite Trade Tool</h1>
-  <span id="dryRunPill" class="pill warn hidden">DRY RUN</span>
+  <label class="toggle hidden" id="dryRunToggleWrap">
+    <input type="checkbox" id="dryRunToggle" checked>
+    <span id="dryRunLabel">Dry run: ON</span>
+  </label>
   <span id="statusPill" class="pill off">Not logged in</span>
   <button id="logoutBtn" class="secondary hidden">Logout</button>
 </header>
@@ -20,50 +23,33 @@
   <h2>Login</h2>
 
   <div class="step" id="step1">
-    <h3>1. Get token id</h3>
-    <button id="btnStart">Start login</button>
+    <h3>1. Client ID</h3>
+    <label>Client ID</label>
+    <input id="username" placeholder="your HDFC Sky login id">
+    <button id="btnBegin">Continue</button>
   </div>
 
   <div class="step" id="step2">
-    <h3>2. Submit username</h3>
-    <label>Username</label>
-    <input id="username" placeholder="your HDFC Sky login id">
-    <button id="btnUsername" disabled>Submit username</button>
-  </div>
-
-  <div class="step" id="step3">
-    <h3>3. Validate OTP</h3>
+    <h3>2. OTP</h3>
     <label>OTP</label>
-    <input id="otp" placeholder="OTP">
+    <input id="otp" placeholder="OTP" inputmode="numeric">
     <div class="row">
       <button id="btnOtp" disabled>Validate OTP</button>
       <button id="btnResendOtp" class="secondary" disabled>Resend OTP</button>
     </div>
   </div>
 
-  <div class="step" id="step4">
-    <h3>4. Validate PIN</h3>
-    <label>PIN / security answer</label>
-    <input id="pin" placeholder="PIN">
-    <button id="btnPin" disabled>Validate PIN</button>
+  <div class="step" id="step3">
+    <h3>3. MPIN</h3>
+    <label>MPIN</label>
+    <input id="pin" placeholder="MPIN" inputmode="numeric">
+    <button id="btnFinish" disabled>Login</button>
   </div>
 
-  <div class="step" id="step5">
-    <h3>5. Authorise</h3>
-    <label>request_token (auto-filled if HDFC returned one — check the raw response below and correct if needed)</label>
-    <input id="requestToken" placeholder="request_token">
-    <label>consent</label>
-    <input id="consent" placeholder="value HDFC expects, e.g. Y">
-    <button id="btnAuthorise" disabled>Authorise</button>
-  </div>
-
-  <div class="step" id="step6">
-    <h3>6. Get access token</h3>
-    <button id="btnAccessToken" disabled>Get access token</button>
-  </div>
-
-  <label>Raw API response (last call)</label>
-  <pre id="loginLog">—</pre>
+  <p class="note">
+    Something not working? <a href="#" id="toggleRawLog">show/hide raw API responses</a>
+  </p>
+  <pre id="loginLog" class="hidden">—</pre>
 </section>
 
 <section id="dashboard" class="card hidden">
@@ -77,7 +63,7 @@
 </section>
 
 <section id="ltpSection" class="card hidden">
-  <h2>LTP watchlist <span class="note">polls every 5s while running</span></h2>
+  <h2>LTP watchlist</h2>
   <div class="row">
     <div>
       <label>Exchange</label>
@@ -88,8 +74,14 @@
       <input id="ltpToken" placeholder="instrument token">
     </div>
   </div>
-  <button id="btnAddLtp">Add to watchlist</button>
-  <button id="btnTogglePoll" class="secondary">Start polling</button>
+  <div class="row" style="align-items:center;">
+    <button id="btnAddLtp">Add to watchlist</button>
+    <button id="btnRefreshLtp" class="secondary" title="Refresh now">⟳ Refresh now</button>
+    <label class="toggle">
+      <input type="checkbox" id="autoRefreshToggle">
+      <span>Auto-refresh every 5s</span>
+    </label>
+  </div>
   <table id="ltpTable">
     <thead><tr><th>Exchange</th><th>Token</th><th>LTP</th><th>Updated</th><th></th></tr></thead>
     <tbody></tbody>

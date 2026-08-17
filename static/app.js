@@ -23,47 +23,75 @@ function log(pre, data) { pre.textContent = JSON.stringify(data, null, 2); }
 
 async function refreshStatus() {
   const s = await api("GET", "/api/status");
-  if (s.dry_run) show($("#dryRunPill")); else hide($("#dryRunPill"));
+  setDryRunUI(s.dry_run);
   if (s.logged_in) {
     $("#statusPill").textContent = "Logged in";
     $("#statusPill").className = "pill on";
-    show($("#logoutBtn"));
+    show($("#logoutBtn")); show($("#dryRunToggleWrap"));
     show($("#dashboard")); show($("#ltpSection")); show($("#ordersSection"));
     hide($("#loginSection"));
     $("#clientId").value = s.client_id || "";
   } else {
     $("#statusPill").textContent = "Not logged in";
     $("#statusPill").className = "pill off";
-    hide($("#logoutBtn"));
+    hide($("#logoutBtn")); hide($("#dryRunToggleWrap"));
     hide($("#dashboard")); hide($("#ltpSection")); hide($("#ordersSection"));
     show($("#loginSection"));
   }
   return s;
 }
 
-// ---------------- login wizard ----------------
+function setDryRunUI(isOn) {
+  $("#dryRunToggle").checked = isOn;
+  $("#dryRunLabel").textContent = isOn ? "Dry run: ON" : "Dry run: OFF — LIVE";
+  $("#dryRunToggleWrap").classList.toggle("live", !isOn);
+}
 
-$("#btnStart").addEventListener("click", async () => {
-  const r = await api("POST", "/api/login/start");
-  log($("#loginLog"), r);
-  markDone($("#step1"));
-  $("#btnUsername").disabled = false;
+$("#dryRunToggle").addEventListener("change", async (e) => {
+  const wantsOn = e.target.checked;
+  if (!wantsOn) {
+    const ok = confirm(
+      "Turning dry run OFF means place/modify/cancel orders will be sent to your LIVE trading account for real. Continue?"
+    );
+    if (!ok) {
+      e.target.checked = true; // revert, stay safe
+      return;
+    }
+  }
+  const r = await api("POST", "/api/dry-run", { enabled: wantsOn });
+  setDryRunUI(r.dry_run);
 });
 
-$("#btnUsername").addEventListener("click", async () => {
-  const r = await api("POST", "/api/login/username", { username: $("#username").value });
-  log($("#loginLog"), r);
-  markDone($("#step2"));
-  $("#btnOtp").disabled = false;
-  $("#btnResendOtp").disabled = false;
+// ---------------- login wizard (3 steps: Client ID, OTP, MPIN) --------
+
+$("#toggleRawLog").addEventListener("click", (e) => {
+  e.preventDefault();
+  $("#loginLog").classList.toggle("hidden");
+});
+
+$("#btnBegin").addEventListener("click", async () => {
+  try {
+    const r = await api("POST", "/api/login/begin", { username: $("#username").value });
+    log($("#loginLog"), r);
+    markDone($("#step1"));
+    $("#btnOtp").disabled = false;
+    $("#btnResendOtp").disabled = false;
+  } catch (err) {
+    log($("#loginLog"), err.data || err);
+    $("#loginLog").classList.remove("hidden");
+  }
 });
 
 $("#btnOtp").addEventListener("click", async () => {
-  const r = await api("POST", "/api/login/otp", { otp: $("#otp").value });
-  log($("#loginLog"), r);
-  markDone($("#step3"));
-  $("#btnPin").disabled = false;
-  if (r.request_token) $("#requestToken").value = r.request_token;
+  try {
+    const r = await api("POST", "/api/login/otp", { otp: $("#otp").value });
+    log($("#loginLog"), r);
+    markDone($("#step2"));
+    $("#btnFinish").disabled = false;
+  } catch (err) {
+    log($("#loginLog"), err.data || err);
+    $("#loginLog").classList.remove("hidden");
+  }
 });
 
 $("#btnResendOtp").addEventListener("click", async () => {
@@ -71,30 +99,16 @@ $("#btnResendOtp").addEventListener("click", async () => {
   log($("#loginLog"), r);
 });
 
-$("#btnPin").addEventListener("click", async () => {
-  const r = await api("POST", "/api/login/pin", { answer: $("#pin").value });
-  log($("#loginLog"), r);
-  markDone($("#step4"));
-  $("#btnAuthorise").disabled = false;
-  if (r.request_token) $("#requestToken").value = r.request_token;
-});
-
-$("#btnAuthorise").addEventListener("click", async () => {
-  const r = await api("POST", "/api/login/authorise", {
-    request_token: $("#requestToken").value,
-    consent: $("#consent").value,
-  });
-  log($("#loginLog"), r);
-  markDone($("#step5"));
-  $("#btnAccessToken").disabled = false;
-  if (r.request_token) $("#requestToken").value = r.request_token;
-});
-
-$("#btnAccessToken").addEventListener("click", async () => {
-  const r = await api("POST", "/api/login/access-token", { request_token: $("#requestToken").value });
-  log($("#loginLog"), r);
-  markDone($("#step6"));
-  await refreshStatus();
+$("#btnFinish").addEventListener("click", async () => {
+  try {
+    const r = await api("POST", "/api/login/finish", { answer: $("#pin").value });
+    log($("#loginLog"), r);
+    markDone($("#step3"));
+    await refreshStatus();
+  } catch (err) {
+    log($("#loginLog"), err.data || err);
+    $("#loginLog").classList.remove("hidden");
+  }
 });
 
 $("#logoutBtn").addEventListener("click", async () => {
@@ -107,12 +121,14 @@ $("#logoutBtn").addEventListener("click", async () => {
 let watchlist = [];
 let pollTimer = null;
 
+let lastPrices = {};
+
 $("#btnAddLtp").addEventListener("click", () => {
   const exchange = $("#ltpExchange").value;
   const token = $("#ltpToken").value.trim();
   if (!token) return;
   watchlist.push({ exchange, token });
-  renderLtpTable();
+  renderLtpTable(lastPrices);
   $("#ltpToken").value = "";
 });
 
@@ -131,13 +147,13 @@ function renderLtpTable(prices = {}) {
   tbody.querySelectorAll("[data-remove]").forEach((btn) => {
     btn.addEventListener("click", () => {
       watchlist.splice(Number(btn.dataset.remove), 1);
-      renderLtpTable();
+      renderLtpTable(lastPrices);
     });
   });
 }
 
 async function pollLtp() {
-  if (watchlist.length === 0 || document.hidden) return;
+  if (watchlist.length === 0) return;
   try {
     const r = await api("POST", "/api/ltp", { data: watchlist });
     const items = (r.raw && (r.raw.data || r.raw)) || [];
@@ -149,21 +165,22 @@ async function pollLtp() {
       const ltp = item.ltp ?? item.LTP ?? item.last_price;
       if (exch && tok !== undefined) prices[`${exch}:${tok}`] = { ltp, time };
     });
+    lastPrices = prices;
     renderLtpTable(prices);
   } catch (e) {
     console.error("LTP poll failed", e);
   }
 }
 
-$("#btnTogglePoll").addEventListener("click", (e) => {
-  if (pollTimer) {
+$("#btnRefreshLtp").addEventListener("click", () => pollLtp());
+
+$("#autoRefreshToggle").addEventListener("change", (e) => {
+  if (e.target.checked) {
+    pollLtp();
+    pollTimer = setInterval(() => { if (!document.hidden) pollLtp(); }, 5000);
+  } else if (pollTimer) {
     clearInterval(pollTimer);
     pollTimer = null;
-    e.target.textContent = "Start polling";
-  } else {
-    pollLtp();
-    pollTimer = setInterval(pollLtp, 5000);
-    e.target.textContent = "Stop polling";
   }
 });
 
