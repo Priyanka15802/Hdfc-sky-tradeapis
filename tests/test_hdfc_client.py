@@ -26,12 +26,15 @@ def test_get_token_id(mock_req):
 
 
 @patch("hdfc_client.requests.request")
-def test_validate_otp_hits_uat_host(mock_req):
+def test_validate_otp_hits_prod_host(mock_req):
+    # Overridden from HDFC's doc (which shows UAT here) after live testing
+    # showed a 401 "invalid login attempt" — see the comment in
+    # hdfc_client.validate_otp for the full reasoning.
     mock_req.return_value = _mock_response({})
     hc.validate_otp("KEY", "TOK", "1234", 10)
     args, kwargs = mock_req.call_args
     assert args[0] == "PUT"
-    assert args[1] == "https://uat-developer.hdfcsky.com/oapi/v1/otp/validate?api_key=KEY&token_id=TOK"
+    assert args[1] == "https://developer.hdfcsky.com/oapi/v1/otp/validate?api_key=KEY&token_id=TOK"
     assert kwargs["json"] == {"otp": "1234"}
 
 

@@ -60,7 +60,12 @@ def validate_username(api_key: str, token_id: str, username: str, timeout: float
 
 
 def validate_otp(api_key: str, token_id: str, otp: str, timeout: float) -> dict:
-    url = f"{UAT_BASE}/oapi/v1/otp/validate?api_key={api_key}&token_id={token_id}"
+    # HDFC's doc shows this one login step on the UAT host while every
+    # other login step (including the token_id this call depends on) is on
+    # prod — that produced a real 401 "invalid login attempt" in testing,
+    # consistent with the UAT environment never having seen a prod
+    # token_id. Using prod here instead, matching the rest of the flow.
+    url = f"{PROD_BASE}/oapi/v1/otp/validate?api_key={api_key}&token_id={token_id}"
     return _request("PUT", url, {"Content-Type": "application/json"}, timeout,
                      json={"otp": otp})
 
