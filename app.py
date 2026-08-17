@@ -120,11 +120,18 @@ def login_otp():
     token_id = session.get("token_id") or body.get("token_id")
     if not token_id:
         return jsonify(error="No token_id yet — call /api/login/start first"), 400
-    raw = hdfc_client.validate_otp(API_KEY, token_id, body["otp"], TIMEOUT)
+    # otp_sent/token_id_used are temporary debug fields, included on both
+    # success and failure, so you can see exactly what this call sent to
+    # HDFC — remove once the OTP step is confirmed working.
+    try:
+        raw = hdfc_client.validate_otp(API_KEY, token_id, body["otp"], TIMEOUT)
+    except HdfcApiError as e:
+        return jsonify(error="HDFC Sky API error", status_code=e.status_code, payload=e.payload,
+                        otp_sent=body["otp"], token_id_used=token_id), 502
     request_token = _extract(raw, "request_token", "requestToken")
     if request_token:
         session["request_token"] = request_token
-    return jsonify(raw=raw, request_token=request_token)
+    return jsonify(raw=raw, request_token=request_token, otp_sent=body["otp"], token_id_used=token_id)
 
 
 @app.post("/api/login/otp/resend")
@@ -142,11 +149,16 @@ def login_pin():
     token_id = session.get("token_id")
     if not token_id:
         return jsonify(error="No token_id yet — call /api/login/start first"), 400
-    raw = hdfc_client.validate_pin(API_KEY, token_id, body["answer"], TIMEOUT)
+    # Temporary debug fields, same reasoning as login_otp above.
+    try:
+        raw = hdfc_client.validate_pin(API_KEY, token_id, body["answer"], TIMEOUT)
+    except HdfcApiError as e:
+        return jsonify(error="HDFC Sky API error", status_code=e.status_code, payload=e.payload,
+                        answer_sent=body["answer"], token_id_used=token_id), 502
     request_token = _extract(raw, "request_token", "requestToken")
     if request_token:
         session["request_token"] = request_token
-    return jsonify(raw=raw, request_token=request_token)
+    return jsonify(raw=raw, request_token=request_token, answer_sent=body["answer"], token_id_used=token_id)
 
 
 @app.post("/api/login/authorise")
