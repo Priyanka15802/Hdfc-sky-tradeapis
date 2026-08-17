@@ -1,5 +1,5 @@
 [Unit]
-Description=HDFC Sky trade API client
+Description=HDFC Sky lite trade tool (Flask)
 After=network-online.target
 Wants=network-online.target
 
@@ -8,7 +8,10 @@ Type=simple
 User=ubuntu
 WorkingDirectory=/home/ubuntu/hdfc-sky-tradeapis
 EnvironmentFile=/home/ubuntu/hdfc-sky-tradeapis/.env
-ExecStart=/home/ubuntu/hdfc-sky-tradeapis/venv/bin/python -m examples.quickstart
+# Bound to 127.0.0.1 only — reach it from your browser via an SSH tunnel
+# (ssh -L 5000:localhost:5000 ubuntu@<ELASTIC_IP>), not by opening a port
+# in the security group. Keeps the trading UI off the public internet.
+ExecStart=/home/ubuntu/hdfc-sky-tradeapis/venv/bin/gunicorn --bind 127.0.0.1:5000 --workers 2 app:app
 Restart=on-failure
 RestartSec=5
 # Secrets live only in .env on this box — keep the unit file itself free of them.

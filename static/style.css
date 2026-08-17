@@ -1,0 +1,84 @@
+* { box-sizing: border-box; }
+body {
+  font-family: -apple-system, Segoe UI, Roboto, sans-serif;
+  background: #0f1115;
+  color: #e6e8eb;
+  margin: 0;
+  padding: 0 0 3rem;
+}
+header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1.5rem;
+  background: #161922;
+  border-bottom: 1px solid #262a35;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+header h1 { font-size: 1.1rem; margin: 0; flex: 1; }
+.pill {
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.pill.on { background: #1e3a2a; color: #4ade80; }
+.pill.off { background: #3a1e1e; color: #f87171; }
+.pill.warn { background: #3a321e; color: #facc15; }
+main { max-width: 1000px; margin: 1.5rem auto; padding: 0 1.5rem; }
+.card {
+  background: #161922;
+  border: 1px solid #262a35;
+  border-radius: 10px;
+  padding: 1.25rem;
+  margin-bottom: 1.25rem;
+}
+.card h2 { margin-top: 0; font-size: 1rem; }
+.step { border: 1px solid #262a35; border-radius: 8px; padding: 0.9rem; margin-bottom: 0.75rem; }
+.step.done { border-color: #2f5a3f; }
+.step h3 { margin: 0 0 0.5rem; font-size: 0.9rem; color: #9aa4b2; }
+label { display: block; font-size: 0.8rem; color: #9aa4b2; margin: 0.4rem 0 0.2rem; }
+input, select {
+  width: 100%;
+  padding: 0.45rem 0.55rem;
+  border-radius: 6px;
+  border: 1px solid #2c313d;
+  background: #0f1115;
+  color: #e6e8eb;
+  font-size: 0.85rem;
+}
+button {
+  margin-top: 0.6rem;
+  padding: 0.45rem 0.9rem;
+  border-radius: 6px;
+  border: none;
+  background: #3b82f6;
+  color: white;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+button.secondary { background: #2c313d; }
+button.danger { background: #dc2626; }
+button:disabled { background: #2c313d; color: #6b7280; cursor: not-allowed; }
+.row { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+.row > * { flex: 1; min-width: 140px; }
+table { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin-top: 0.5rem; }
+th, td { text-align: left; padding: 0.4rem 0.5rem; border-bottom: 1px solid #262a35; }
+pre {
+  background: #0f1115;
+  border: 1px solid #262a35;
+  border-radius: 6px;
+  padding: 0.75rem;
+  font-size: 0.75rem;
+  overflow-x: auto;
+  max-height: 260px;
+}
+.tabs { display: flex; gap: 0.4rem; margin-bottom: 1rem; flex-wrap: wrap; }
+.tabs button { margin-top: 0; background: #2c313d; }
+.tabs button.active { background: #3b82f6; }
+.tabpanel { display: none; }
+.tabpanel.active { display: block; }
+.hidden { display: none !important; }
+.note { font-size: 0.78rem; color: #9aa4b2; margin-top: 0.4rem; }

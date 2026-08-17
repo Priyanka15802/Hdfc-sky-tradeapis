@@ -23,6 +23,7 @@ python3 -m venv venv
 source venv/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt
+pip install gunicorn   # production WSGI server; not in requirements.txt so local/Windows dev isn't forced to install it
 
 echo
 echo "Now create $APP_DIR/.env (copy from .env.example) with real secrets,"
@@ -32,3 +33,8 @@ echo "Then install the systemd unit:"
 echo "  sudo cp deploy/hdfc-sky-bot.service /etc/systemd/system/"
 echo "  sudo systemctl daemon-reload"
 echo "  sudo systemctl enable --now hdfc-sky-bot"
+echo
+echo "Access the UI from your laptop via an SSH tunnel (nothing is opened"
+echo "in the security group beyond port 22):"
+echo "  ssh -L 5000:localhost:5000 ubuntu@<ELASTIC_IP>"
+echo "  then browse http://localhost:5000"

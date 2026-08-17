@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HDFC Sky Lite</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header>
+  <h1>HDFC Sky — Lite Trade Tool</h1>
+  <span id="dryRunPill" class="pill warn hidden">DRY RUN</span>
+  <span id="statusPill" class="pill off">Not logged in</span>
+  <button id="logoutBtn" class="secondary hidden">Logout</button>
+</header>
+
+<main>
+
+<section id="loginSection" class="card">
+  <h2>Login</h2>
+
+  <div class="step" id="step1">
+    <h3>1. Get token id</h3>
+    <button id="btnStart">Start login</button>
+  </div>
+
+  <div class="step" id="step2">
+    <h3>2. Submit username</h3>
+    <label>Username</label>
+    <input id="username" placeholder="your HDFC Sky login id">
+    <button id="btnUsername" disabled>Submit username</button>
+  </div>
+
+  <div class="step" id="step3">
+    <h3>3. Validate OTP</h3>
+    <label>OTP</label>
+    <input id="otp" placeholder="OTP">
+    <div class="row">
+      <button id="btnOtp" disabled>Validate OTP</button>
+      <button id="btnResendOtp" class="secondary" disabled>Resend OTP</button>
+    </div>
+  </div>
+
+  <div class="step" id="step4">
+    <h3>4. Validate PIN</h3>
+    <label>PIN / security answer</label>
+    <input id="pin" placeholder="PIN">
+    <button id="btnPin" disabled>Validate PIN</button>
+  </div>
+
+  <div class="step" id="step5">
+    <h3>5. Authorise</h3>
+    <label>request_token (auto-filled if HDFC returned one — check the raw response below and correct if needed)</label>
+    <input id="requestToken" placeholder="request_token">
+    <label>consent</label>
+    <input id="consent" placeholder="value HDFC expects, e.g. Y">
+    <button id="btnAuthorise" disabled>Authorise</button>
+  </div>
+
+  <div class="step" id="step6">
+    <h3>6. Get access token</h3>
+    <button id="btnAccessToken" disabled>Get access token</button>
+  </div>
+
+  <label>Raw API response (last call)</label>
+  <pre id="loginLog">—</pre>
+</section>
+
+<section id="dashboard" class="card hidden">
+  <h2>Session</h2>
+  <div class="row">
+    <div>
+      <label>Client ID (used in every order payload)</label>
+      <input id="clientId" placeholder="client_id">
+    </div>
+  </div>
+</section>
+
+<section id="ltpSection" class="card hidden">
+  <h2>LTP watchlist <span class="note">polls every 5s while running</span></h2>
+  <div class="row">
+    <div>
+      <label>Exchange</label>
+      <select id="ltpExchange"><option>NSE</option><option>BSE</option></select>
+    </div>
+    <div>
+      <label>Token</label>
+      <input id="ltpToken" placeholder="instrument token">
+    </div>
+  </div>
+  <button id="btnAddLtp">Add to watchlist</button>
+  <button id="btnTogglePoll" class="secondary">Start polling</button>
+  <table id="ltpTable">
+    <thead><tr><th>Exchange</th><th>Token</th><th>LTP</th><th>Updated</th><th></th></tr></thead>
+    <tbody></tbody>
+  </table>
+</section>
+
+<section id="ordersSection" class="card hidden">
+  <h2>Orders</h2>
+  <div class="tabs">
+    <button data-tab="regular" class="active">Regular</button>
+    <button data-tab="amo">AMO</button>
+    <button data-tab="cover">Cover</button>
+    <button data-tab="bracket">Bracket</button>
+    <button data-tab="gtt">GTT</button>
+  </div>
+
+  <template id="orderFormTemplate">
+    <div class="row">
+      <div><label>Exchange</label><input class="f-exchange" value="NSE"></div>
+      <div><label>Instrument token</label><input class="f-instrument_token"></div>
+      <div><label>Order side</label>
+        <select class="f-order_side"><option>BUY</option><option>SELL</option></select>
+      </div>
+    </div>
+    <div class="row">
+      <div><label>Order type</label>
+        <select class="f-order_type"><option>LIMIT</option><option>MARKET</option><option>SL</option><option>SLM</option></select>
+      </div>
+      <div><label>Price</label><input class="f-price" value="0"></div>
+      <div><label>Trigger price</label><input class="f-trigger_price" value="0"></div>
+    </div>
+    <div class="row">
+      <div><label>Quantity</label><input class="f-quantity" value="1"></div>
+      <div><label>Disclosed quantity</label><input class="f-disclosed_quantity" value="0"></div>
+      <div><label>Product</label>
+        <select class="f-product"><option>MIS</option><option>CNC</option><option>NRML</option></select>
+      </div>
+    </div>
+    <div class="row">
+      <div><label>Validity</label>
+        <select class="f-validity"><option>DAY</option><option>IOC</option></select>
+      </div>
+      <div><label>User order id</label><input class="f-user_order_id" value="10001"></div>
+      <div><label>Device</label><input class="f-device" value="WEB"></div>
+    </div>
+  </template>
+
+  <div class="tabpanel active" data-panel="regular">
+    <h3>Place</h3><div class="orderForm" id="regularPlaceForm"></div>
+    <button data-action="place-regular">Place regular order</button>
+    <h3>Modify</h3>
+    <label>OMS order id</label><input id="regularModifyOmsId">
+    <div class="orderForm" id="regularModifyForm"></div>
+    <button data-action="modify-regular">Modify regular order</button>
+    <h3>Cancel</h3>
+    <label>OMS order id</label><input id="regularCancelOmsId">
+    <button class="danger" data-action="cancel-regular">Cancel regular order</button>
+  </div>
+
+  <div class="tabpanel" data-panel="amo">
+    <h3>Place</h3><div class="orderForm" id="amoPlaceForm"></div>
+    <button data-action="place-amo">Place AMO order</button>
+    <h3>Modify</h3>
+    <label>OMS order id</label><input id="amoModifyOmsId">
+    <label>Exchange order id</label><input id="amoModifyExchangeOrderId">
+    <div class="orderForm" id="amoModifyForm"></div>
+    <button data-action="modify-amo">Modify AMO order</button>
+    <h3>Cancel</h3>
+    <label>OMS order id</label><input id="amoCancelOmsId">
+    <button class="danger" data-action="cancel-amo">Cancel AMO order</button>
+  </div>
+
+  <div class="tabpanel" data-panel="cover">
+    <h3>Place</h3><div class="orderForm" id="coverPlaceForm"></div>
+    <label>Stop loss value</label><input id="coverStopLoss" value="1">
+    <button data-action="place-cover">Place cover order</button>
+    <h3>Modify</h3>
+    <label>OMS order id</label><input id="coverModifyOmsId">
+    <label>Exchange order id</label><input id="coverModifyExchangeOrderId">
+    <div class="orderForm" id="coverModifyForm"></div>
+    <button data-action="modify-cover">Modify cover order</button>
+    <h3>Cancel</h3>
+    <label>OMS order id</label><input id="coverCancelOmsId">
+    <label>Exchange order id</label><input id="coverCancelExchangeOrderId">
+    <button class="danger" data-action="cancel-cover">Cancel cover order</button>
+  </div>
+
+  <div class="tabpanel" data-panel="bracket">
+    <h3>Place</h3><div class="orderForm" id="bracketPlaceForm"></div>
+    <div class="row">
+      <div><label>Square off value</label><input id="bracketSquareOff" value="1"></div>
+      <div><label>Stop loss value</label><input id="bracketStopLoss" value="1"></div>
+      <div><label>Trailing stop loss</label><input id="bracketTrailingSL" value="0"></div>
+    </div>
+    <button data-action="place-bracket">Place bracket order</button>
+    <h3>Modify</h3>
+    <label>OMS order id</label><input id="bracketModifyOmsId">
+    <label>Exchange order id</label><input id="bracketModifyExchangeOrderId">
+    <div class="orderForm" id="bracketModifyForm"></div>
+    <button data-action="modify-bracket">Modify bracket order</button>
+    <h3>Exit / cancel</h3>
+    <label>OMS order id</label><input id="bracketCancelOmsId">
+    <label>Exchange order id</label><input id="bracketCancelExchangeOrderId">
+    <button class="danger" data-action="cancel-bracket">Exit bracket order</button>
+  </div>
+
+  <div class="tabpanel" data-panel="gtt">
+    <h3>Place</h3>
+    <div class="row">
+      <div><label>Exchange</label><input id="gttExchange" value="NSE"></div>
+      <div><label>Instrument token</label><input id="gttInstrumentToken"></div>
+      <div><label>Order side</label>
+        <select id="gttOrderSide"><option>BUY</option><option>SELL</option></select>
+      </div>
+    </div>
+    <div class="row">
+      <div><label>Order type</label><input id="gttOrderType" value="LIMIT"></div>
+      <div><label>Price</label><input id="gttPrice" value="0"></div>
+      <div><label>Trigger price</label><input id="gttTriggerPrice" value="0"></div>
+    </div>
+    <div class="row">
+      <div><label>Quantity</label><input id="gttQuantity" value="1"></div>
+      <div><label>Product</label><input id="gttProduct" value="CNC"></div>
+      <div><label>Expiry (YYYY-MM-DD)</label><input id="gttExpiry"></div>
+    </div>
+    <button data-action="place-gtt">Place GTT order</button>
+
+    <h3>Modify</h3>
+    <p class="note">Not available yet — HDFC's doc doesn't show a request body for Modify GTT Orders. Add it to hdfc_client.py once you have the spec.</p>
+    <button disabled>Modify GTT order</button>
+
+    <h3>Cancel</h3>
+    <label>GTT id</label><input id="gttCancelId">
+    <button class="danger" data-action="cancel-gtt">Cancel GTT order</button>
+
+    <h3>Fetch</h3>
+    <button data-action="fetch-gtt">Fetch my GTT orders</button>
+  </div>
+
+  <label>Raw API response (last call)</label>
+  <pre id="orderLog">—</pre>
+</section>
+
+</main>
+<script src="/app.js"></script>
+</body>
+</html>
