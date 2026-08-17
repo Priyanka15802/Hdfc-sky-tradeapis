@@ -1,0 +1,26 @@
+# Optional CD workflow: SSH into your EC2 box and run deploy/deploy.sh.
+#
+# Disabled by default (workflow_dispatch only) so it never fails CI before
+# you've set things up. Once you've:
+#   1. Added repo secrets EC2_HOST (your Elastic IP), EC2_USER (e.g. ubuntu),
+#      and EC2_SSH_KEY (private key with access to that host)
+#   2. Run deploy/setup_ec2.sh on the instance once
+# you can either trigger this manually from the Actions tab, or uncomment
+# the `push` trigger below to deploy on every merge to main.
+name: Deploy to EC2
+
+on:
+  workflow_dispatch: {}
+  # push:
+  #   branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: bash ~/hdfc-sky-tradeapis/deploy/deploy.sh

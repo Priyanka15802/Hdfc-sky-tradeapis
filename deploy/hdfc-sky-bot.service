@@ -1,0 +1,17 @@
+[Unit]
+Description=HDFC Sky trade API client
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/hdfc-sky-tradeapis
+EnvironmentFile=/home/ubuntu/hdfc-sky-tradeapis/.env
+ExecStart=/home/ubuntu/hdfc-sky-tradeapis/venv/bin/python -m examples.quickstart
+Restart=on-failure
+RestartSec=5
+# Secrets live only in .env on this box — keep the unit file itself free of them.
+
+[Install]
+WantedBy=multi-user.target
