@@ -187,25 +187,31 @@ def exit_bracket_order(api_key: str, access_token: str, oms_order_id: str,
 # NOTE: Modify GTT Orders is intentionally absent. HDFC's doc gives no
 # request body or way to identify which GTT to modify for that endpoint
 # (PUT /oapi/v1/event/gtt) — nothing to build against yet.
+#
+# Doc shows these on the UAT host, but (like LTP and OTP) the access_token
+# is prod-issued, so they use prod here too.
 
 def place_gtt_order(api_key: str, access_token: str, gtt: dict, timeout: float) -> dict:
-    url = f"{UAT_BASE}/oapi/v1/event/gtt?api_key={api_key}"
+    url = f"{PROD_BASE}/oapi/v1/event/gtt?api_key={api_key}"
     return _request("POST", url, _auth_headers(access_token), timeout, json=gtt)
 
 
 def cancel_gtt_order(api_key: str, access_token: str, client_id: str, gtt_id: str, timeout: float) -> dict:
-    url = f"{UAT_BASE}/oapi/v1/event/gtt/{client_id}/{gtt_id}?api_key={api_key}"
+    url = f"{PROD_BASE}/oapi/v1/event/gtt/{client_id}/{gtt_id}?api_key={api_key}"
     return _request("DELETE", url, _auth_headers(access_token), timeout)
 
 
 def fetch_gtt_orders(api_key: str, access_token: str, client_id: str, timeout: float) -> dict:
-    url = f"{UAT_BASE}/oapi/v1/event/gtt/{client_id}?api_key={api_key}"
+    url = f"{PROD_BASE}/oapi/v1/event/gtt/{client_id}?api_key={api_key}"
     return _request("GET", url, {"Authorization": access_token}, timeout)
 
 
 # --- LTP ---------------------------------------------------
 
 def fetch_ltp(api_key: str, access_token: str, watchlist: list, timeout: float) -> dict:
-    url = f"{UAT_BASE}/oapi/v1/fetch-ltp?api_key={api_key}"
+    # HDFC's doc shows this on the UAT host, but the access_token is issued
+    # by prod — authenticating it against UAT fails (same root cause as the
+    # OTP-validate host fix). Using prod so the prod-issued token is valid.
+    url = f"{PROD_BASE}/oapi/v1/fetch-ltp?api_key={api_key}"
     return _request("PUT", url, _auth_headers(access_token), timeout,
                      json={"data": watchlist})

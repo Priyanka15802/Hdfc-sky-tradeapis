@@ -78,11 +78,13 @@ def test_cancel_cover_order_sends_body(mock_req):
 
 
 @patch("hdfc_client.requests.request")
-def test_place_gtt_hits_uat_host(mock_req):
+def test_place_gtt_hits_prod_host(mock_req):
+    # Overridden from HDFC's doc (which shows UAT) — the prod-issued
+    # access_token can't authenticate on UAT, same as OTP/LTP.
     mock_req.return_value = _mock_response({})
     hc.place_gtt_order("KEY", "TOKEN", {"action_type": "single_order"}, 10)
     args, kwargs = mock_req.call_args
-    assert args[1] == "https://uat-developer.hdfcsky.com/oapi/v1/event/gtt?api_key=KEY"
+    assert args[1] == "https://developer.hdfcsky.com/oapi/v1/event/gtt?api_key=KEY"
 
 
 @patch("hdfc_client.requests.request")
@@ -91,7 +93,8 @@ def test_fetch_ltp_wraps_watchlist_in_data(mock_req):
     hc.fetch_ltp("KEY", "TOKEN", [{"exchange": "BSE", "token": "542809"}], 10)
     args, kwargs = mock_req.call_args
     assert args[0] == "PUT"
-    assert args[1] == "https://uat-developer.hdfcsky.com/oapi/v1/fetch-ltp?api_key=KEY"
+    # prod host, not the UAT host in the doc — see fetch_ltp comment.
+    assert args[1] == "https://developer.hdfcsky.com/oapi/v1/fetch-ltp?api_key=KEY"
     assert kwargs["json"] == {"data": [{"exchange": "BSE", "token": "542809"}]}
 
 
