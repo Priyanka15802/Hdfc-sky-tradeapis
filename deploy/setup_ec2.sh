@@ -8,16 +8,18 @@
 #   ssh ubuntu@<ELASTIC_IP> 'bash setup_ec2.sh'
 set -euo pipefail
 
-REPO_URL="git@github.com:priyanka15802/hdfc-sky-tradeapis.git"
+REPO_URL="https://github.com/Priyanka15802/Hdfc-sky-tradeapis.git"
+BRANCH="claude/hdfc-sky-api-integration-jv7ab8"
 APP_DIR="$HOME/hdfc-sky-tradeapis"
 
 sudo apt-get update
 sudo apt-get install -y python3-venv python3-pip git
 
 if [ ! -d "$APP_DIR" ]; then
-  git clone "$REPO_URL" "$APP_DIR"
+  git clone --branch "$BRANCH" "$REPO_URL" "$APP_DIR"
 fi
 cd "$APP_DIR"
+git checkout "$BRANCH"
 
 python3 -m venv venv
 source venv/bin/activate

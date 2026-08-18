@@ -4,10 +4,11 @@
 set -euo pipefail
 
 APP_DIR="$HOME/hdfc-sky-tradeapis"
+BRANCH="claude/hdfc-sky-api-integration-jv7ab8"
 cd "$APP_DIR"
 
 git fetch origin
-git reset --hard origin/main
+git reset --hard "origin/$BRANCH"
 
 source venv/bin/activate
 pip install -r requirements.txt
