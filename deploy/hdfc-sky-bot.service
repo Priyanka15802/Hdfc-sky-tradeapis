@@ -11,7 +11,11 @@ EnvironmentFile=/home/ubuntu/hdfc-sky-tradeapis/.env
 # Bound to 127.0.0.1 only — reach it from your browser via an SSH tunnel
 # (ssh -L 5000:localhost:5000 ubuntu@<ELASTIC_IP>), not by opening a port
 # in the security group. Keeps the trading UI off the public internet.
-ExecStart=/home/ubuntu/hdfc-sky-tradeapis/venv/bin/gunicorn --bind 127.0.0.1:5000 --workers 2 app:app
+# --access-logfile - / --error-logfile - send gunicorn's request log and
+# error log to stdout/stderr, which systemd captures — so `journalctl -u
+# hdfc-sky-bot -f` shows a line with the HTTP status code (200/401/502/…)
+# for every request as it happens.
+ExecStart=/home/ubuntu/hdfc-sky-tradeapis/venv/bin/gunicorn --bind 127.0.0.1:5000 --workers 2 --access-logfile - --error-logfile - app:app
 Restart=on-failure
 RestartSec=5
 # Secrets live only in .env on this box — keep the unit file itself free of them.
